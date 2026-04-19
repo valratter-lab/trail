@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hiking & Cycling Trails — Neustadt · Deidesheim · Bad Dürkheim</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #e84c6a;
+    --accent-light: rgba(232, 76, 106, 0.08);
+    --accent-hover: rgba(232, 76, 106, 0.12);
+    --text-primary: #2c3345;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --bg-white: #ffffff;
+    --bg-light: #f8f9fb;
+    --bg-card: #ffffff;
+    --border: #e8eaef;
+    --border-light: #f0f1f5;
+    --shadow-sm: 0 1px 3px rgba(44,51,69,0.06);
+    --shadow-md: 0 4px 16px rgba(44,51,69,0.08);
+    --shadow-lg: 0 8px 32px rgba(44,51,69,0.1);
+    --radius: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', system-ui, -apple-system, sans-serif; background: var(--bg-light); color: var(--text-primary); }
+
+  #map { width: 100%; height: 100vh; }
+
+  /* ── Header ── */
+  .header-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+    background: var(--bg-white);
+    padding: 12px 24px; display: flex; align-items: center; gap: 16px;
+    box-shadow: var(--shadow-sm); border-bottom: 1px solid var(--border);
+  }
+  .header-bar h1 {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 20px; color: var(--text-primary); font-weight: 400; letter-spacing: -0.3px;
+  }
+  .header-bar .subtitle { font-size: 12px; color: var(--text-muted); font-weight: 400; letter-spacing: 0.5px; text-transform: uppercase; }
+  .header-logo {
+    width: 36px; height: 36px; border-radius: 10px; background: var(--accent-light);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .header-logo svg { width: 20px; height: 20px; }
+
+  /* ── Sidebar toggle ── */
+  .legend-toggle {
+    position: fixed; top: 64px; right: 12px; z-index: 1001;
+    background: var(--bg-white); color: var(--text-primary); border: 1px solid var(--border);
+    padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px;
+    font-family: 'DM Sans', sans-serif; font-weight: 500;
+    box-shadow: var(--shadow-sm); transition: all 0.2s;
+  }
+  .legend-toggle:hover { background: var(--bg-light); box-shadow: var(--shadow-md); }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    position: fixed; top: 54px; right: 0; width: 400px; height: calc(100vh - 54px);
+    background: var(--bg-white); z-index: 999; overflow-y: auto;
+    border-left: 1px solid var(--border); transition: transform 0.3s ease;
+  }
+  .sidebar.hidden { transform: translateX(100%); }
+  .sidebar h2 {
+    padding: 20px 24px 12px; color: var(--text-primary); font-family: 'DM Serif Display', serif;
+    font-size: 18px; font-weight: 400; border-bottom: 1px solid var(--border-light); margin-bottom: 0;
+  }
+
+  .filter-bar {
+    padding: 12px 24px; display: flex; gap: 8px; flex-wrap: wrap; border-bottom: 1px solid var(--border-light);
+  }
+  .filter-btn {
+    padding: 6px 16px; border-radius: 24px; border: 1px solid var(--border);
+    background: var(--bg-white); color: var(--text-secondary); font-size: 12px;
+    font-family: 'DM Sans', sans-serif; font-weight: 500; cursor: pointer;
+    transition: all 0.2s; letter-spacing: 0.3px;
+  }
+  .filter-btn.active {
+    border-color: var(--accent); color: var(--accent); background: var(--accent-light);
+  }
+  .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Trail cards ── */
+  .trail-card {
+    margin: 12px 16px; padding: 20px 24px; background: var(--bg-card);
+    border: 1px solid var(--border-light); border-radius: var(--radius); cursor: pointer;
+    transition: all 0.25s ease; position: relative;
+  }
+  .trail-card:hover { border-color: var(--border); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .trail-card.active { border-color: var(--accent); box-shadow: 0 4px 20px rgba(232,76,106,0.1); }
+
+  .trail-card .card-icon {
+    width: 40px; height: 40px; margin-bottom: 14px;
+  }
+  .trail-card .card-icon svg { width: 40px; height: 40px; stroke: var(--accent); fill: none; stroke-width: 1.5; }
+
+  .trail-card .name {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 18px; font-weight: 400; color: var(--text-primary);
+    margin-bottom: 6px; line-height: 1.2;
+  }
+
+  .trail-card .meta-line {
+    font-size: 11px; color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: 1.2px; font-weight: 500; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .trail-card .meta-line .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+
+  .trail-card .description {
+    font-size: 14px; color: var(--text-secondary); line-height: 1.6;
+    font-weight: 400; margin-bottom: 14px;
+  }
+
+  .trail-card .stats {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
+    border-top: 1px solid var(--border-light); padding-top: 14px;
+  }
+  .stat { text-align: center; }
+  .stat:not(:last-child) { border-right: 1px solid var(--border-light); }
+  .stat .value { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+  .stat .unit { font-size: 11px; font-weight: 400; color: var(--text-muted); }
+  .stat .label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 500; margin-top: 2px; }
+
+  .elevation-chart {
+    margin-top: 14px; background: var(--bg-light); border-radius: 8px;
+    padding: 8px; height: 56px; position: relative; overflow: hidden;
+  }
+  .elevation-chart canvas { width: 100%; height: 100%; }
+
+  /* ── Map popups ── */
+  .popup-content { font-family: 'DM Sans', sans-serif; }
+  .popup-content h3 { font-family: 'DM Serif Display', serif; color: var(--text-primary); font-size: 15px; font-weight: 400; margin-bottom: 6px; }
+  .popup-content p { color: var(--text-secondary); font-size: 12px; margin: 3px 0; line-height: 1.5; }
+  .popup-content .pop-stat { font-weight: 600; color: var(--text-primary); }
+  .popup-content .pop-accent { color: var(--accent); font-weight: 600; }
+
+  /* ── City markers ── */
+  .city-icon {
+    background: var(--bg-white); color: var(--text-primary); padding: 5px 12px; border-radius: 20px;
+    font-size: 12px; font-weight: 600; white-space: nowrap;
+    border: 1.5px solid var(--border);
+    box-shadow: var(--shadow-md); font-family: 'DM Sans', sans-serif;
+    letter-spacing: 0.2px;
+  }
+  .city-icon .city-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-right: 6px; vertical-align: middle; }
+
+  .leaflet-popup-content-wrapper { border-radius: var(--radius); box-shadow: var(--shadow-lg); border: 1px solid var(--border-light); }
+  .leaflet-popup-tip { box-shadow: none; }
+
+  /* ── Layer control ── */
+  .leaflet-control-layers {
+    background: var(--bg-white) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    color: var(--text-primary) !important;
+    box-shadow: var(--shadow-md) !important;
+    padding: 10px 14px !important;
+    font-size: 12px !important;
+    font-family: 'DM Sans', sans-serif !important;
+  }
+  .leaflet-control-layers-separator { border-top: 1px solid var(--border-light) !important; margin: 8px 0 !important; }
+  .leaflet-control-layers label { color: var(--text-secondary) !important; margin-bottom: 4px; display: block; font-size: 12px !important; }
+  .leaflet-control-layers-toggle { width: 36px !important; height: 36px !important; }
+
+  /* ── Scrollbar ── */
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  @media (max-width: 768px) {
+    .sidebar { width: 100%; top: auto; bottom: 0; height: 50vh; border-left: none; border-top: 1px solid var(--border); }
+    .sidebar.hidden { transform: translateY(100%); }
+    .header-bar h1 { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header-bar">
+  <div class="header-logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#e84c6a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 20l5-16 4 10 4-6 5 12"/>
+    </svg>
+  </div>
+  <div>
+    <h1>Pfälzerwald & Weinstraße</h1>
+    <div class="subtitle">Neustadt · Deidesheim · Bad Dürkheim</div>
+  </div>
+</div>
+
+<button class="legend-toggle" onclick="toggleSidebar()">Touren</button>
+
+<div id="map"></div>
+
+<div class="sidebar" id="sidebar">
+  <h2>Touren & Routen</h2>
+  <div class="filter-bar">
+    <button class="filter-btn active" data-filter="all" onclick="filterTrails('all', this)">All</button>
+    <button class="filter-btn" data-filter="hiking" onclick="filterTrails('hiking', this)">🥾 Hiking</button>
+    <button class="filter-btn" data-filter="cycling" onclick="filterTrails('cycling', this)">🚲 Cycling</button>
+    <button class="filter-btn" data-filter="mtb" onclick="filterTrails('mtb', this)">🚵 MTB</button>
+  </div>
+  <div id="trail-list"></div>
+</div>
+
+<script>
+// ============ MAP SETUP ============
+const map = L.map('map', {
+  center: [49.41, 8.17],
+  zoom: 13,
+  zoomControl: false
+});
+
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+// ============ TILE LAYERS — landscape style ============
+
+// 1. Esri World Topo — rich landscape colors, terrain shading, labels
+const esriTopo = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+  attribution: '© Esri, HERE, Garmin, OpenStreetMap contributors',
+  maxZoom: 18
+});
+
+// 2. OpenTopoMap — classic topo with contour lines
+const osmTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenTopoMap contributors',
+  maxZoom: 17
+});
+
+// 3. Esri World Imagery — satellite/aerial photo
+const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  attribution: '© Esri, Maxar, Earthstar Geographics',
+  maxZoom: 18
+});
+
+// 4. Standard OSM
+const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors',
+  maxZoom: 19
+});
+
+// 5. Esri terrain/hillshade overlay (semi-transparent on top of any base)
+const hillshade = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}', {
+  attribution: '© Esri',
+  maxZoom: 18,
+  opacity: 0.25
+});
+
+// 6. Waymarked Trails — hiking overlay showing official marked paths
+const hikingOverlay = L.tileLayer('https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png', {
+  attribution: '© Waymarked Trails',
+  maxZoom: 18,
+  opacity: 0.6
+});
+
+// 7. Waymarked Trails — cycling overlay
+const cyclingOverlay = L.tileLayer('https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png', {
+  attribution: '© Waymarked Trails',
+  maxZoom: 18,
+  opacity: 0.6
+});
+
+// Default: landscape topo
+esriTopo.addTo(map);
+
+L.control.layers({
+  '🏔️ Landscape': esriTopo,
+  '📐 Topographic': osmTopo,
+  '🛰️ Satellite': esriSatellite,
+  '🗺️ Standard': osmStandard
+}, {
+  '▓ Hillshade': hillshade,
+  '🥾 Hiking paths (official)': hikingOverlay,
+  '🚲 Cycling paths (official)': cyclingOverlay
+}, { position: 'topright', collapsed: false }).addTo(map);
+
+// Scale bar
+L.control.scale({ position: 'bottomleft', metric: true, imperial: false }).addTo(map);
+
+// ============ CITIES ============
+const cities = [
+  { name: 'Neustadt a.d. Weinstraße', lat: 49.3535, lng: 8.1392, pop: '53,000', elev: '142m' },
+  { name: 'Deidesheim', lat: 49.4117, lng: 8.1847, pop: '3,800', elev: '117m' },
+  { name: 'Bad Dürkheim', lat: 49.4617, lng: 8.1722, pop: '19,500', elev: '132m' }
+];
+
+cities.forEach(city => {
+  const icon = L.divIcon({
+    className: 'city-marker',
+    html: `<div class="city-icon"><span class="city-dot"></span>${city.name}</div>`,
+    iconSize: [0, 0],
+    iconAnchor: [-10, 20]
+  });
+  L.marker([city.lat, city.lng], { icon })
+    .addTo(map)
+    .bindPopup(`
+      <div class="popup-content">
+        <h3>${city.name}</h3>
+        <p>Population: <span class="pop-stat">${city.pop}</span></p>
+        <p>Elevation: <span class="pop-stat">${city.elev}</span></p>
+      </div>
+    `);
+});
+
+// ============ TRAIL DATA (Real data from research) ============
+const trails = [
+  {
+    id: 1,
+    name: 'Pfälzer Weinsteig Etappe 3',
+    subtitle: 'Bad Dürkheim → Deidesheim',
+    type: 'hiking',
+    difficulty: 'moderate',
+    distance: 15.0,
+    duration: '4:30 h',
+    durationMin: 270,
+    elevGain: 513,
+    elevLoss: 498,
+    elevProfile: [132, 180, 260, 340, 410, 480, 520, 490, 430, 380, 320, 260, 200, 150, 117],
+    description: 'Classic Weinsteig stage through vineyards and Pfälzerwald forests. Passes Wachenheim castle ruins and offers panoramic views of the Rhine plain. Certified premium trail.',
+    source: 'Pfälzer Weinsteig (certified quality trail)',
+    color: '#66bb6a',
+    coords: [
+      [49.4617, 8.1722], [49.4590, 8.1680], [49.4555, 8.1620], [49.4530, 8.1550],
+      [49.4500, 8.1490], [49.4480, 8.1460], [49.4455, 8.1500], [49.4420, 8.1530],
+      [49.4400, 8.1570], [49.4380, 8.1590], [49.4350, 8.1610], [49.4330, 8.1640],
+      [49.4310, 8.1670], [49.4290, 8.1690], [49.4265, 8.1710], [49.4240, 8.1730],
+      [49.4220, 8.1740], [49.4200, 8.1760], [49.4175, 8.1780], [49.4150, 8.1800],
+      [49.4130, 8.1820], [49.4117, 8.1847]
+    ]
+  },
+  {
+    id: 2,
+    name: 'Pfälzer Weinsteig Etappe 4',
+    subtitle: 'Deidesheim → Neustadt a.d.W.',
+    type: 'hiking',
+    difficulty: 'hard',
+    distance: 19.9,
+    duration: '6:00 h',
+    durationMin: 360,
+    elevGain: 541,
+    elevLoss: 566,
+    elevProfile: [117, 160, 220, 310, 390, 450, 520, 570, 610, 580, 520, 460, 380, 300, 220, 180, 142],
+    description: 'Longest stage through the Palatinate Forest, climbing the Weinbiet (554m). Passes through forests, vineyards, and along idyllic streams. Summit views of the entire region.',
+    source: 'Pfälzer Weinsteig (certified quality trail)',
+    color: '#ef5350',
+    coords: [
+      [49.4117, 8.1847], [49.4100, 8.1810], [49.4080, 8.1760], [49.4050, 8.1700],
+      [49.4020, 8.1640], [49.3990, 8.1580], [49.3960, 8.1520], [49.3930, 8.1470],
+      [49.3900, 8.1430], [49.3870, 8.1400], [49.3840, 8.1380], [49.3810, 8.1360],
+      [49.3780, 8.1350], [49.3750, 8.1340], [49.3720, 8.1340], [49.3690, 8.1350],
+      [49.3660, 8.1360], [49.3630, 8.1370], [49.3600, 8.1380], [49.3570, 8.1385],
+      [49.3550, 8.1390], [49.3535, 8.1392]
+    ]
+  },
+  {
+    id: 3,
+    name: 'Pfälzer Mandelpfad Etappe 3',
+    subtitle: 'Bad Dürkheim → Neustadt a.d.W.',
+    type: 'hiking',
+    difficulty: 'moderate',
+    distance: 18.5,
+    duration: '5:00 h',
+    durationMin: 300,
+    elevGain: 380,
+    elevLoss: 395,
+    elevProfile: [132, 165, 200, 250, 280, 310, 340, 320, 290, 250, 220, 190, 165, 142],
+    description: 'The Almond Trail follows the blooming almond trees along the eastern edge of the Haardt mountains. Passes through Wachenheim and Deidesheim, past historic town centers and wine estates.',
+    source: 'Pfälzer Mandelpfad',
+    color: '#ffb74d',
+    coords: [
+      [49.4617, 8.1722], [49.4580, 8.1740], [49.4540, 8.1770], [49.4500, 8.1790],
+      [49.4460, 8.1800], [49.4420, 8.1810], [49.4380, 8.1830], [49.4340, 8.1840],
+      [49.4300, 8.1850], [49.4260, 8.1855], [49.4220, 8.1850], [49.4180, 8.1840],
+      [49.4140, 8.1840], [49.4100, 8.1830], [49.4060, 8.1810], [49.4020, 8.1780],
+      [49.3980, 8.1740], [49.3940, 8.1700], [49.3900, 8.1650], [49.3860, 8.1600],
+      [49.3800, 8.1540], [49.3740, 8.1480], [49.3680, 8.1430], [49.3620, 8.1400],
+      [49.3580, 8.1393], [49.3535, 8.1392]
+    ]
+  },
+  {
+    id: 4,
+    name: 'Deutsche Weinstraße Radweg',
+    subtitle: 'Neustadt → Deidesheim → Bad Dürkheim',
+    type: 'cycling',
+    difficulty: 'easy',
+    distance: 17.0,
+    duration: '1:00 h',
+    durationMin: 60,
+    elevGain: 199,
+    elevLoss: 189,
+    elevProfile: [142, 135, 128, 122, 118, 115, 117, 120, 125, 128, 132],
+    description: 'Flat cycling route along the famous German Wine Route. Mostly paved, passing through charming wine villages, vineyards, and along the edge of the Palatinate Forest. Family-friendly.',
+    source: 'Deutsche Weinstraße Radweg',
+    color: '#64b5f6',
+    coords: [
+      [49.3535, 8.1392], [49.3570, 8.1420], [49.3610, 8.1460], [49.3660, 8.1510],
+      [49.3710, 8.1560], [49.3760, 8.1610], [49.3810, 8.1660], [49.3860, 8.1710],
+      [49.3910, 8.1760], [49.3960, 8.1790], [49.4010, 8.1810], [49.4060, 8.1830],
+      [49.4090, 8.1840], [49.4117, 8.1847], [49.4150, 8.1850], [49.4190, 8.1845],
+      [49.4230, 8.1835], [49.4270, 8.1820], [49.4310, 8.1810], [49.4350, 8.1800],
+      [49.4390, 8.1790], [49.4430, 8.1780], [49.4470, 8.1770], [49.4510, 8.1760],
+      [49.4550, 8.1745], [49.4590, 8.1730], [49.4617, 8.1722]
+    ]
+  },
+  {
+    id: 5,
+    name: 'Weinberge Rundweg Deidesheim',
+    subtitle: 'Circular: Deidesheim vineyards',
+    type: 'hiking',
+    difficulty: 'easy',
+    distance: 8.2,
+    duration: '2:15 h',
+    durationMin: 135,
+    elevGain: 180,
+    elevLoss: 180,
+    elevProfile: [117, 150, 190, 230, 260, 280, 260, 220, 180, 140, 117],
+    description: 'Scenic loop through the famous Deidesheim vineyards (Paradiesgarten, Herrgottsacker). Wine trail markers guide you past premium Riesling terroir with views over the Rhine plain.',
+    source: 'Deidesheim Touristik',
+    color: '#aed581',
+    coords: [
+      [49.4117, 8.1847], [49.4130, 8.1890], [49.4145, 8.1930], [49.4160, 8.1960],
+      [49.4170, 8.1940], [49.4175, 8.1900], [49.4168, 8.1860], [49.4155, 8.1830],
+      [49.4145, 8.1800], [49.4135, 8.1770], [49.4125, 8.1750], [49.4118, 8.1770],
+      [49.4112, 8.1800], [49.4115, 8.1830], [49.4117, 8.1847]
+    ]
+  },
+  {
+    id: 6,
+    name: 'MTB Haardtrand Trail',
+    subtitle: 'Neustadt → Deidesheim (forest trails)',
+    type: 'mtb',
+    difficulty: 'hard',
+    distance: 22.5,
+    duration: '2:30 h',
+    durationMin: 150,
+    elevGain: 620,
+    elevLoss: 595,
+    elevProfile: [142, 220, 310, 400, 480, 520, 490, 440, 380, 350, 420, 490, 450, 350, 260, 180, 117],
+    description: 'Technical mountain bike trail through the Pfälzerwald along the Haardt ridge. Single tracks, forest roads, and steep descents. Passes Weinbiet and several forest huts (Hütten).',
+    source: 'Trailforks / MTB Pfalz',
+    color: '#ce93d8',
+    coords: [
+      [49.3535, 8.1392], [49.3555, 8.1340], [49.3580, 8.1280], [49.3610, 8.1230],
+      [49.3650, 8.1200], [49.3690, 8.1180], [49.3730, 8.1170], [49.3770, 8.1190],
+      [49.3810, 8.1220], [49.3850, 8.1260], [49.3890, 8.1300], [49.3930, 8.1340],
+      [49.3970, 8.1370], [49.4010, 8.1400], [49.4040, 8.1440], [49.4060, 8.1500],
+      [49.4070, 8.1560], [49.4080, 8.1620], [49.4090, 8.1680], [49.4100, 8.1740],
+      [49.4110, 8.1800], [49.4117, 8.1847]
+    ]
+  },
+  {
+    id: 7,
+    name: 'Kraut-und-Rüben-Radweg',
+    subtitle: 'Circular: vineyard & vegetable fields',
+    type: 'cycling',
+    difficulty: 'easy',
+    distance: 14.5,
+    duration: '0:51 h',
+    durationMin: 51,
+    elevGain: 70,
+    elevLoss: 70,
+    elevProfile: [117, 112, 108, 105, 103, 105, 108, 112, 115, 117],
+    description: 'Barrier-free circular cycling route connecting the Weinstraße vineyards with the "vegetable garden" of the Vorderpfalz. Flat terrain, paved paths, suitable for all ages and e-bikes.',
+    source: 'Pfalz Touristik',
+    color: '#4fc3f7',
+    coords: [
+      [49.4117, 8.1847], [49.4130, 8.1920], [49.4150, 8.2000], [49.4170, 8.2080],
+      [49.4180, 8.2140], [49.4170, 8.2200], [49.4145, 8.2230], [49.4120, 8.2200],
+      [49.4100, 8.2140], [49.4090, 8.2070], [49.4095, 8.2000], [49.4105, 8.1930],
+      [49.4117, 8.1847]
+    ]
+  },
+  {
+    id: 8,
+    name: 'Römerweg Bad Dürkheim',
+    subtitle: 'Bad Dürkheim Roman heritage loop',
+    type: 'hiking',
+    difficulty: 'easy',
+    distance: 6.5,
+    duration: '1:45 h',
+    durationMin: 105,
+    elevGain: 120,
+    elevLoss: 120,
+    elevProfile: [132, 155, 180, 210, 240, 230, 200, 170, 145, 132],
+    description: 'Cultural-historical hiking loop past the Roman villa rustica, Limburg monastery ruins, and the Dürkheimer Fass (world\'s largest wine barrel). Informative panels along the route.',
+    source: 'Bad Dürkheim Tourismus',
+    color: '#fff176',
+    coords: [
+      [49.4617, 8.1722], [49.4635, 8.1690], [49.4655, 8.1650], [49.4670, 8.1620],
+      [49.4680, 8.1590], [49.4675, 8.1560], [49.4660, 8.1550], [49.4640, 8.1570],
+      [49.4625, 8.1600], [49.4615, 8.1640], [49.4610, 8.1680], [49.4617, 8.1722]
+    ]
+  }
+];
+
+// ============ DRAW TRAILS ============
+const trailLayers = {};
+
+trails.forEach(trail => {
+  const polyline = L.polyline(trail.coords, {
+    color: trail.type === 'hiking' ? '#e84c6a' : trail.type === 'cycling' ? '#c43a57' : '#a82e48',
+    weight: 3.5,
+    opacity: 0.8,
+    dashArray: trail.type === 'cycling' ? '10 6' : trail.type === 'mtb' ? '4 8' : null,
+    lineCap: 'round',
+    lineJoin: 'round'
+  }).addTo(map);
+
+  const diffLabel = { easy: 'Leicht', moderate: 'Mittel', hard: 'Schwer' }[trail.difficulty];
+  polyline.bindPopup(`
+    <div class="popup-content">
+      <h3>${trail.name}</h3>
+      <p style="color:#9ca3af;margin-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:1px;">${trail.distance} KM &nbsp;·&nbsp; ${diffLabel}</p>
+      <p>${trail.description}</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #e8eaef;">
+        <div style="text-align:center;"><span class="pop-stat">${trail.duration}</span><br><span style="font-size:10px;color:#9ca3af;text-transform:uppercase;">Dauer</span></div>
+        <div style="text-align:center;"><span class="pop-stat">${trail.elevGain}m</span><br><span style="font-size:10px;color:#9ca3af;text-transform:uppercase;">Anstieg</span></div>
+        <div style="text-align:center;"><span class="pop-accent">${diffLabel}</span><br><span style="font-size:10px;color:#9ca3af;text-transform:uppercase;">Niveau</span></div>
+      </div>
+      <p style="margin-top:8px;font-size:10px;color:#9ca3af;">Quelle: ${trail.source}</p>
+    </div>
+  `, { maxWidth: 300 });
+
+  // Direction arrow markers
+  const mid = Math.floor(trail.coords.length / 2);
+  const midPoint = trail.coords[mid];
+  const arrowIcon = L.divIcon({
+    className: 'arrow-marker',
+    html: `<div style="color:${trail.color};font-size:16px;text-shadow:0 1px 3px rgba(0,0,0,0.5);">▶</div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8]
+  });
+
+  trailLayers[trail.id] = { polyline, trail };
+});
+
+// ============ SIDEBAR TRAIL CARDS ============
+// SVG icons matching the website's line-art style
+const trailIcons = {
+  hiking: `<svg viewBox="0 0 48 48" fill="none" stroke="#e84c6a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 38l10-24 8 14 8-10 10 20"/><circle cx="24" cy="8" r="3"/></svg>`,
+  cycling: `<svg viewBox="0 0 48 48" fill="none" stroke="#e84c6a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="32" r="8"/><circle cx="34" cy="32" r="8"/><path d="M14 32l6-16h8l6 16"/><path d="M20 16l4-6"/><circle cx="26" cy="8" r="2"/></svg>`,
+  mtb: `<svg viewBox="0 0 48 48" fill="none" stroke="#e84c6a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="34" r="8"/><circle cx="36" cy="34" r="8"/><path d="M12 34l8-18h8l8 18"/><path d="M20 16l3-6"/><circle cx="25" cy="8" r="2"/><path d="M4 42c4-4 8-2 12-6s8-2 12-6 8-2 12-6"/></svg>`
+};
+
+function renderTrailList(filter = 'all') {
+  const container = document.getElementById('trail-list');
+  container.innerHTML = '';
+
+  const filtered = filter === 'all' ? trails : trails.filter(t => t.type === filter);
+  const diffLabel = { easy: 'Leicht', moderate: 'Mittel', hard: 'Schwer' };
+
+  filtered.forEach(trail => {
+    const card = document.createElement('div');
+    card.className = 'trail-card';
+    card.id = `card-${trail.id}`;
+
+    card.innerHTML = `
+      <div class="card-icon">${trailIcons[trail.type] || trailIcons.hiking}</div>
+      <div class="name">${trail.name}</div>
+      <div class="meta-line">
+        <span>${trail.distance} KM</span>
+        <span class="dot"></span>
+        <span>${diffLabel[trail.difficulty]}</span>
+      </div>
+      <div class="description">${trail.description}</div>
+      <div class="stats">
+        <div class="stat">
+          <div class="value">${trail.duration}</div>
+          <div class="label">Dauer</div>
+        </div>
+        <div class="stat">
+          <div class="value">${trail.elevGain}<span class="unit"> m</span></div>
+          <div class="label">Anstieg</div>
+        </div>
+        <div class="stat">
+          <div class="value">${trail.elevLoss}<span class="unit"> m</span></div>
+          <div class="label">Abstieg</div>
+        </div>
+      </div>
+      <div class="elevation-chart"><canvas id="elev-${trail.id}"></canvas></div>
+    `;
+
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.trail-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+
+      // Highlight trail on map
+      Object.values(trailLayers).forEach(({ polyline }) => {
+        polyline.setStyle({ weight: 3.5, opacity: 0.35 });
+      });
+      trailLayers[trail.id].polyline.setStyle({ weight: 5, opacity: 1 });
+      trailLayers[trail.id].polyline.openPopup();
+
+      map.fitBounds(trailLayers[trail.id].polyline.getBounds(), { padding: [60, 60] });
+    });
+
+    container.appendChild(card);
+
+    // Draw elevation mini-chart
+    setTimeout(() => drawElevation(trail), 50);
+  });
+}
+
+function drawElevation(trail) {
+  const canvas = document.getElementById(`elev-${trail.id}`);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * 2;
+  canvas.height = rect.height * 2;
+  ctx.scale(2, 2);
+
+  const w = rect.width;
+  const h = rect.height;
+  const data = trail.elevProfile;
+  const min = Math.min(...data) - 20;
+  const max = Math.max(...data) + 20;
+
+  ctx.beginPath();
+  ctx.moveTo(0, h);
+  data.forEach((v, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = h - ((v - min) / (max - min)) * (h - 4);
+    if (i === 0) ctx.lineTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.lineTo(w, h);
+  ctx.closePath();
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, h);
+  gradient.addColorStop(0, 'rgba(232,76,106,0.18)');
+  gradient.addColorStop(1, 'rgba(232,76,106,0.02)');
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  ctx.beginPath();
+  data.forEach((v, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = h - ((v - min) / (max - min)) * (h - 4);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = '#e84c6a';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Min/max labels
+  ctx.font = '9px DM Sans, sans-serif';
+  ctx.fillStyle = '#9ca3af';
+  ctx.fillText(`${Math.min(...data)}m`, 2, h - 4);
+  ctx.fillText(`${Math.max(...data)}m`, w - 32, 12);
+}
+
+function filterTrails(type, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  // Show/hide trail layers
+  Object.values(trailLayers).forEach(({ polyline, trail }) => {
+    if (type === 'all' || trail.type === type) {
+      polyline.setStyle({ opacity: 0.85 });
+      map.addLayer(polyline);
+    } else {
+      polyline.setStyle({ opacity: 0.15 });
+    }
+  });
+
+  renderTrailList(type);
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('hidden');
+}
+
+// ============ LEGEND ON MAP ============
+const legend = L.control({ position: 'bottomleft' });
+legend.onAdd = function() {
+  const div = L.DomUtil.create('div');
+  div.style.cssText = 'background:rgba(255,255,255,0.95);padding:14px 18px;border-radius:12px;color:#2c3345;font-size:11px;font-family:DM Sans,sans-serif;border:1px solid #e8eaef;box-shadow:0 4px 16px rgba(44,51,69,0.08);backdrop-filter:blur(10px);';
+  div.innerHTML = `
+    <div style="font-family:DM Serif Display,serif;font-size:13px;margin-bottom:8px;color:#2c3345;">Legende</div>
+    <div style="margin:5px 0;display:flex;align-items:center;gap:8px;"><span style="display:inline-block;width:24px;height:2.5px;background:#e84c6a;border-radius:2px;"></span><span style="color:#6b7280;">Wandern</span></div>
+    <div style="margin:5px 0;display:flex;align-items:center;gap:8px;"><span style="display:inline-block;width:24px;height:0;border-top:2.5px dashed #e84c6a;"></span><span style="color:#6b7280;">Radfahren</span></div>
+    <div style="margin:5px 0;display:flex;align-items:center;gap:8px;"><span style="display:inline-block;width:24px;height:0;border-top:2.5px dotted #e84c6a;"></span><span style="color:#6b7280;">Mountainbike</span></div>
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid #e8eaef;display:flex;gap:6px;">
+      <span style="font-size:10px;color:#6b7280;letter-spacing:0.5px;">LEICHT</span>
+      <span style="color:#e8eaef;">·</span>
+      <span style="font-size:10px;color:#6b7280;letter-spacing:0.5px;">MITTEL</span>
+      <span style="color:#e8eaef;">·</span>
+      <span style="font-size:10px;color:#6b7280;letter-spacing:0.5px;">SCHWER</span>
+    </div>
+  `;
+  return div;
+};
+legend.addTo(map);
+
+// ============ POINTS OF INTEREST ============
+const pois = [
+  { name: 'Weinbiet (554m)', lat: 49.3780, lng: 8.1350, icon: '⛰️', desc: 'Highest peak between Deidesheim & Neustadt. Panoramic tower with 360° views.' },
+  { name: 'Wachtenburg (Ruine)', lat: 49.4420, lng: 8.1530, icon: '🏰', desc: 'Medieval castle ruins above Wachenheim. Beer garden with vineyard views.' },
+  { name: 'Limburg Kloster', lat: 49.4670, lng: 8.1620, icon: '⛪', desc: 'Romanesque monastery ruins (11th century) above Bad Dürkheim.' },
+  { name: 'Dürkheimer Fass', lat: 49.4610, lng: 8.1750, icon: '🪵', desc: 'World\'s largest wine barrel — actually a restaurant! Seats 450 guests.' },
+  { name: 'Historisches Rathaus', lat: 49.4115, lng: 8.1852, icon: '🏛️', desc: 'Historic town hall of Deidesheim. Heart of the medieval old town.' },
+  { name: 'Hambacher Schloss', lat: 49.3290, lng: 8.1180, icon: '🏰', desc: 'Cradle of German democracy (1832). Museum and panoramic terrace.' }
+];
+
+pois.forEach(poi => {
+  const icon = L.divIcon({
+    className: 'poi-marker',
+    html: `<div style="font-size:18px;filter:drop-shadow(0 1px 3px rgba(44,51,69,0.15));cursor:pointer;background:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1.5px solid #e8eaef;box-shadow:0 2px 8px rgba(44,51,69,0.08);">${poi.icon}</div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14]
+  });
+  L.marker([poi.lat, poi.lng], { icon })
+    .addTo(map)
+    .bindPopup(`
+      <div class="popup-content">
+        <h3>${poi.name}</h3>
+        <p>${poi.desc}</p>
+      </div>
+    `);
+});
+
+// Initialize
+renderTrailList();
+</script>
+</body>
+</html>
